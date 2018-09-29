@@ -1,0 +1,1947 @@
+<!DOCTYPE html>
+<html lang="zn">
+<head>
+    <meta charset="UTF-8">
+    <title>坦克大作战</title>
+    <style>
+        #data{
+            width: 61%;
+            height: 100%;
+            background-color: #eeeeee;
+            border: 1px solid red;
+            position: absolute;
+            right: 0px;
+            top: 0px;
+        }
+        #data ul li{
+            float: left;
+            list-style: none;
+            width: 400px;
+            height: 25px;
+            border: 1px solid green;
+        }
+        #data #name li{
+            width: 120px;
+            float: left;
+            text-align: center;
+        }
+    </style>
+</head>
+<body onkeydown="userOrder(event||window.event,hero)">
+<canvas id="map"></canvas> 
+<div id="data">
+    <ul id="name">
+        <li>坦克1</li>
+        <li>坦克2</li>
+        <li>坦克3</li>
+        <li>坦克4</li>
+        <li>坦克5</li>
+        <li>英雄</li>
+    </ul>
+    <ul id="datas">
+        <li id="i1"></li>
+        <li id="i2"></li>
+        <li id="i3"></li>
+        <li id="i4"></li>
+        <li id="i5"></li>
+        <li id="i6"></li>
+        <li id="i7"></li>
+        <li id="i8">我方生命:</li>
+        <li id="i9">我方坦克第0发子弹</li>
+        <li id="i10"></li>
+        <li id="i11">敌方x号坦克死亡</li>
+        <li id="i12"></li>
+        <li id="i13"></li>
+        <li id="i14"></li>
+        <li id="i15"></li>
+        <li id="i16">导弹位置:</li>
+        <li id="i17">hero.missileLive</li>
+        <li id="i18"></li>
+    </ul>
+</div>
+</body>
+<script src='js/js.js'></script>
+<script type='text/javascript'>
+var map = document.getElementById('map');
+var pen = map.getContext('2d');
+var border = new Array(500,600);//地图大小
+var bg = 'background-color:black;border:1px solid red';//地图背景属性
+var num = 6;//初始坦克数量
+var enemyNum = null;//实时坦克数量
+var size = 1;//坦克尺寸1~5
+var speed = 10;//坦克速度
+var heroColor = new Array('#fbdf7c','#946716','#af4c08','#e98223','#c3851e','#c06902','#a94200','#f8a025','#ffd94d','black','#e1b037','#d6730b','#e69a11','#fbd246','#cf7a03','#cf7a03','#cc7937','#d4741d','#ffcc5a','#d4741d','#ffcc5a','yellow','orange');//我方坦克颜色数组
+var enemyColor = new Array('#FFE7C4','#316F33','#593E18','#D59249','#797207','#B0852E','#4F1B00','#FBB14D','#FFE288','#132B30','#C1C069','#A77F1E','#CDAB2A','#FFDD7E','#988809','#988809','#918769','#A28040','#FFD899','#A28040','#FFD899','blue','white');//敌方坦克颜色数组  
+var hero = new Hero('hero',(border[0]/2-17.4),(border[1]-34),0,speed,size,heroColor);//我方坦克
+var enemyTank = null;
+var enemyTanks = new Array();
+//子弹
+var heroBullet = null ;
+var heroBullets = new Array();
+var enemyBullet = null ;
+var enemyBullets = new Array();
+//炸弹爆炸图片
+var enemyBombs = new Array();
+var heroBombs = new Array();
+//导弹
+var heroMissile = null;
+var heroMissiles = new Array();
+//锁定
+var l=0;//locknum 211line
+var lock=false;//是否锁定;
+var lockTigerX=0;//锁定目标坦克位置x坐标
+var lockTigerY=0;//锁定目标坦克位置y坐标
+
+var tigerX = null;//锁定目标坦克计算后的位置x坐标
+var tigerY = null;//锁定目标坦克计算后的位置y坐标
+var tigerR = null;//锁定范围半径
+//免疫攻击
+var immune = false;//我方坦克免疫攻击
+//绘制地图
+function drawMap(m,w,h,style){
+    m.width = w;
+    m.height = h;
+    m.style = style;
+
+    
+}
+drawMap(map,border[0],border[1],bg);
+//测试
+function text(){
+  document.onkeydown=function(event){
+      var e = event || window.event || arguments.callee.caller.arguments[0];
+      var kk = e.keyCode;
+      alert(kk);
+  }
+}
+// text();
+//解决长按键盘停顿问题
+document.onkeyup = function(event){
+    var ev = event||window.event;
+    var n = ev.keyCode;
+    switch(n){
+        case 38:
+            hero.top = false;
+        break;
+        case 39:
+            hero.right = false;
+        break;
+        case 40:
+            hero.bottom = false;
+        break;
+        case 37:
+            hero.left = false;
+        break;
+    }
+    hero.musicOpen = false;
+    //结束坦克运动时的声音
+}
+window.setInterval(function(){
+    if(hero.top){
+        hero.y -= hero.speed; 
+    }else if(hero.right){
+        hero.x += hero.speed; 
+    }else if(hero.bottom){
+        hero.y += hero.speed;  
+    }else if(hero.left){
+        hero.x -= hero.speed;         
+    }
+},100);
+//坦克公共类
+function Tank(type,x,y,direct,speed,size,color){
+    this.type = type;
+    this.x = x;
+    this.y = y;    
+    this.direct = direct;
+    this.speed = speed;
+    this.size = size;
+    this.color = color;
+    this.live = true;
+}
+//英雄类
+function Hero(type,x,y,direct,speed,size,color){ 
+    this.inherit = Tank;//继承Tank类
+    this.inherit(type,x,y,direct,speed,size,color);//调用
+    this.type = 'hero';
+    this.heroBulletLive = false;
+    this.missileLive = false;
+    this.top = false;
+    this.right = false;
+    this.bottom = false;
+    this.left = false;
+    this.musicOpen =false;
+    this.music =function(){
+        var au = document.createElement('audio');
+        au.preload = 'auto';
+        if(this.musicOpen==false){
+            au.src = '';
+        }else{
+            au.src = 'music/move.wav'
+        }            
+        au.volume = 0.5;     
+        au.play();//运动声
+    }
+    // this.move = function(n){//我方坦克手动控制运动
+    //     if(hero.live){
+    //         switch(n){
+    //             case 38:
+    //                 this.y -= this.speed*2;
+    //                 this.direct = 0;                
+    //             break; 
+    //             case 39:
+    //                 this.x += this.speed*2;
+    //                 this.direct = 1;                
+    //             break;
+    //             case 40:
+    //                 this.y += this.speed*2;
+    //                 this.direct = 2;                
+    //             break;
+    //             case 37:
+    //                 this.x -= this.speed*2;
+    //                 this.direct = 3;                
+    //             break;
+    //         }            
+    //     }
+    // }
+    this.shoot = function(){
+        if(this.live){
+            switch(this.direct){
+                case 0://上
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.y-this.size*13.6;
+                    heroBullet = new Bullet(this.type,this/*this:hero*/,x,y,this.direct,this.speed,this.size);
+                break;
+                case 1://右
+                    var x = this.x+this.size*48;         
+                    var y = this.size*35.2/2+this.y; 
+                    heroBullet = new Bullet(this.type,this,x,y,this.direct,this.speed,this.size);
+                break;
+                case 2://下
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.size*49.6+this.y;                 
+                    heroBullet = new Bullet(this.type,this,x,y,this.direct,this.speed,this.size);
+                break;
+                case 3://左
+                    var x = this.x-this.size*14;             
+                    var y = this.size*35.2/2+this.y;  
+                    heroBullet = new Bullet(this.type,this,x,y,this.direct,this.speed,this.size);
+                break;  
+            }
+            this.heroBulletLive = true;
+            heroBullets.push(heroBullet);
+            var heTimer = window.setInterval('heroBullets['+(heroBullets.length-1)+'].bulletRun()',50);
+            heroBullets[heroBullets.length-1].timer = heTimer;
+            // hit(hero);
+            // document.title = heroBullets[heroBullets.length-1].live;
+        }
+    }
+    this.locking = function(){//锁定目标坦克
+        lock = true;
+        if(l<enemyTanks.length){    
+            for(var i=0;i<enemyTanks.length;i++){
+                enemyTanks[i].lock = false;
+            }
+            if(enemyTanks[l].live&&lock){
+                enemyTanks[l].lock=true;//按顺序锁定
+                document.getElementById('i15').innerText='锁定'+enemyTanks[l].code+'号目标坦克';
+            }
+            document.getElementById('i13').innerText=enemyTanks[0].code+':'+enemyTanks[0].lock;
+            document.getElementById('i14').innerText=enemyTanks[1].code+':'+enemyTanks[1].lock; 
+            l++;
+            if(l>=enemyTanks.length){
+                l=0;
+            }            
+        }
+    }
+    this.missile = function(){//目标坦克锁定后发射导弹(给导弹赋值)
+        // lockTigerX lockTigerY
+        if(this.live){
+            this.missileLive =true;
+            switch(this.direct){
+                case 0://上
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.y-this.size*13.6-5;
+                    heroMissile = new Bullet(this.type,this,x,y,this.direct,this.speed*0.4,this.size);
+                break;
+                case 1://右
+                    var x = this.x+this.size*48+5;         
+                    var y = this.size*35.2/2+this.y; 
+                    heroMissile = new Bullet(this.type,this,x,y,this.direct,this.speed*0.4,this.size);
+                break;
+                case 2://下
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.size*49.6+this.y+5;                 
+                    heroMissile = new Bullet(this.type,this,x,y,this.direct,this.speed*0.4,this.size);
+                break;
+                case 3://左
+                    var x = this.x-this.size*14-5;             
+                    var y = this.size*35.2/2+this.y;  
+                    heroMissile = new Bullet(this.type,this,x,y,this.direct,this.speed*0.4,this.size);
+                break;                                                
+            }
+            heroMissiles.push(heroMissile);
+            var hmTimer = window.setInterval('heroMissiles['+(heroMissiles.length-1)+'].missileRun()',50);
+            heroMissiles[heroMissiles.length-1].timer = hmTimer;
+            // heroMissile.live = true;   多余
+        }     
+    }    
+}
+//敌人类
+function Enemy(type,x,y,direct,speed,size,color){ 
+    this.inherit = Tank;//继承Tank类
+    this.inherit(type,x,y,direct,speed,size,color);//调用
+    this.count = 0;
+    this.type = 'enemy';
+    this.code = 0;
+    this.enemyBulletLive = false;   
+    this.lock=false;   
+    this.enemyRun = function(){
+        this.count++;
+        if(this.count>10){
+            this.direct = Math.round(Math.random()*3);
+            this.count = 0;
+        }        
+        switch(this.direct){
+            case 0:
+                if(this.y<=0){
+                    this.y = 0;
+                }else{
+                    this.y -= this.speed; 
+                }                                         
+            break;
+            case 1:
+                if((this.x+this.size*34)>=border[0]){
+                    this.x = border[0]-this.size*34;
+                }else{
+                    this.x += this.speed;
+                }                                                                  
+            break;
+            case 2:
+                if((this.y+this.size*(34))>=border[1]){
+                    this.y = border[1]-this.size*(34);
+                }else{
+                    this.y += this.speed;
+                }                                                    
+            break;
+            case 3:
+                if(this.x<=0){
+                    this.x = 0;
+                }else{
+                    this.x -= this.speed;
+                }                                                       
+            break;             
+        }
+        if(this.enemyBulletLive==false&&this.live){//启动子弹 
+            switch(this.direct){
+                case 0://上
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.y-this.size*13.6;
+                    enemyBullet = new Bullet(this.type,this,x,y,this.direct,15,this.size);
+                break;
+                case 1://右
+                    var x = this.x+this.size*48;         
+                    var y = this.size*35.2/2+this.y; 
+                    enemyBullet = new Bullet(this.type,this,x,y,this.direct,15,this.size);
+                break;
+                case 2://下
+                    var x = this.size*35.2/2+this.x;
+                    var y = this.size*49.6+this.y;                 
+                    enemyBullet = new Bullet(this.type,this,x,y,this.direct,15,this.size);
+                break;
+                case 3://左
+                    var x = this.x-this.size*14;             
+                    var y = this.size*35.2/2+this.y;  
+                    enemyBullet = new Bullet(this.type,this,x,y,this.direct,15,this.size);
+                break;  
+            }
+            enemyBullets.push(enemyBullet);
+            var enTimer = window.setInterval('enemyBullets['+(enemyBullets.length-1)+'].bulletRun()',50);
+            enemyBullets[enemyBullets.length-1].timer = enTimer;    
+            // if(enemyBullets[(enemyBullets.length-1)].live==false){
+            //     enemyBullets.length -=1;
+            // }问题bug：若敌方坦克未死亡，则敌方坦克的子弹数组会无限增加
+
+            this.enemyBulletLive = true; 
+            document.title = enemyBullets.length+'/上:'+hero.top+'/右:'+hero.right+'/下:'+hero.bottom+'/左'+hero.left; 
+            for(var i=0;i<enemyBullets.length;i++){
+                if(enemyBullets[i].live==false){
+                    window.clearInterval(enemyBullets[i].timer);
+                }                
+            }
+
+        } 
+    }
+    this.collisionAvoid = function(){//坦克规避
+        if(enemyTanks.length>0){
+            for(var i=0;i<enemyTanks.length;i++){
+                if(this.code!=i){
+                    if(this.direct==enemyTanks[i].direct){
+                        switch(this.direct){
+                            case 0:
+                                if(this.x>enemyTanks[i].x&&this.x<(enemyTanks[i].x+enemyTanks[i].size*34)||(this.x+this.size*34)>enemyTanks[i].x&&(this.x+this.size*34)<(enemyTanks[i].x+enemyTanks[i].size*34)){
+                                    if((this.y+this.size*34)>=enemyTanks[i].y&&(this.y+this.size*34)<=(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                        this.y -= this.speed;
+                                        enemyTanks[i].direct = 2;
+                                        enemyTanks[i].y += enemyTanks[i].speed;
+                                        
+                                    }else if(this.y>enemyTanks[i].y&&this.y<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                        this.direct = 2;
+                                        this.y += this.speed;
+                                        enemyTanks[i].y -= enemyTanks[i].speed;
+                                        
+                                    }                                        
+                                }
+                            break;
+                            case 1:
+                                if(this.y>enemyTanks[i].y&&this.y<(enemyTanks[i].y+enemyTanks[i].size*34)||(this.y+this.size*34)>enemyTanks[i].y&&(this.y+this.size*34)<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                    if((this.x+this.size*34)>enemyTanks[i].x&&(this.x+this.size*34)<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                        this.direct = 3;
+                                        this.x -= this.speed;
+                                        enemyTanks[i].x += enemyTanks[i].speed;
+                                    }else if(this.x>enemyTanks[i].x&&this.x<(enemyTanks[i].x+enemyTanks[i].size*34)){
+                                        this.x +=this.speed;
+                                        enemyTanks[i].direct = 3;
+                                        enemyTanks[i].x -= enemyTanks[i].speed;
+                                    }
+                                }
+                            break;
+                            case 2:
+                                if(this.x>enemyTanks[i].x&&this.x<(enemyTanks[i].x+enemyTanks[i].size*34)||(this.x+this.size*34)>enemyTanks[i].x&&(this.x+this.size*34)<(enemyTanks[i].x+enemyTanks[i].size*34)){
+                                    if((this.y+this.size*34)>enemyTanks[i].y&&(this.y+this.size*34)<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                        this.direct = 0;
+                                        this.y -= this.speed;
+                                        enemyTanks[i].y += enemyTanks[i].speed;
+                                    }else if(this.y<enemyTanks[i].y&&this.y<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                        enemyTanks[i].direct = 0;
+                                        enemyTanks[i].y -= enemyTanks[i].speed;
+                                        this.y += this.speed;
+                                    }
+                                }
+                            break;
+                            case 3:
+                                if(this.y>enemyTanks[i].y&&this.y<(enemyTanks[i].y+enemyTanks[i].size*34)||(this.y+this.size*34)>enemyTanks[i].y&&(this.y+this.size*34)<(enemyTanks[i].y+enemyTanks[i].size*34)){
+                                    if(this.x<(enemyTanks[i].x+enemyTanks[i].size*34)&&this.x<enemyTanks[i].y){
+                                       this.direct = 1;
+                                       this.x += this.speed;
+                                       enemyTanks[i].x -= enemyTanks[i].speed; 
+                                    }else if((this.x+this.size*34)>enemyTanks[i].x&&(this.x+this.size*34)<(enemyTanks[i].x+enemyTanks[i].size*34)){
+                                        enemyTanks[i].direct = 1;
+                                        enemyTanks[i].x += enemyTanks[i].speed;
+                                        this.x -= this.speed;
+                                    }
+                                }
+                            break;
+
+                        }
+                    }
+
+                }
+                //四个点
+                //(this.x,this.y),(this.size*34, this.size*34.8)
+                //enemyTanks[i].x,enemyTanks[i].y,enemyTanks[i].size*34,enemyTanks[i].size*34.8
+                 
+            }
+        }
+    }
+}
+//子弹类
+function Bullet(type,tank,x,y,direct,speed,size){
+    this.type = type;//敌方坦克还是我方坦克的子弹
+    this.tank = tank;
+    this.x = x;
+    this.y = y;
+    this.direct = direct;
+    this.speed = speed;
+    this.size = size;
+    // this.color= color;
+    this.live = true;
+    this.timer = null;
+    this.bulletRun = function(){//子弹运动(hero和enemy共用)
+        if(this.x<=this.size*4||this.x>=(border[0]-this.size*4)||this.y<=this.size*4||this.y>=(border[1]-this.size*4)||this.live==false){//子弹遇到边界或者死亡时停止运动
+            this.live = false;
+            if(this.type == 'enemy'){
+                this.tank.enemyBulletLive = false;
+                // enemyBullets.length = 0;
+            }else if(this.type = 'hero'){
+                this.tank.heroBulletLive = false;
+            }
+            window.clearInterval(this.timer);//timer id=8
+        }else{
+            switch(this.direct){
+                case 0:
+                    this.y -=this.speed;                
+                break;
+                case 1:
+                    this.x +=this.speed;
+                break;
+                case 2:
+                    this.y +=this.speed;
+                break;
+                case 3:
+                    this.x -=this.speed;
+                break;                                    
+            }
+        }
+
+        if(this.type == 'enemy'){
+            document.getElementById("i1").innerText="敌方:子弹x="+this.x+"子弹y="+this.y;
+            document.getElementById("i2").innerText="敌方:x="+this.tank.x+"y="+this.tank.y;
+        }else if(this.type = 'hero'){
+            document.getElementById("i3").innerText="我方:子弹x="+this.x+"子弹y="+this.y;
+            // document.getElementById("i4").innerText="我方:x="+this.tank.x+"y="+this.tank.y;
+        }
+        // document.getElementById("i1").innerText="我方:子弹x="+this.x+"子弹y="+this.y;
+        // document.getElementById("i2").innerText="敌方:x="+this.tank.x+"y="+this.tank.y;
+        document.getElementById("i6").innerText="this.tank.ememyBulletLive2="+this.tank.enemyBulletLive;
+        document.getElementById("i7").innerText="who:"+this.type;
+    }
+    this.missileRun = function(){//导弹运动(专属hero用)
+        if(this.x<=this.size*4||this.x>=(border[0]-this.size*4)||this.y<=this.size*4||this.y>=(border[1]-this.size*4)||this.live==false){
+            this.live = false;
+            window.clearInterval(this.timer);
+            hero.missileLive = false;
+        }else{ /*lockTigerX this.x lockTigerY this.y*/
+            tigerX = hero.size*17.6+lockTigerX;
+            tigerY = hero.size*17+lockTigerY+hero.size*2-hero.size*4;
+            tigerR = hero.size*28;
+            if(this.x<tigerX){
+                this.x +=this.speed;
+            }
+            if(this.y<tigerY){
+                this.y +=this.speed;
+            }
+            if(this.x>tigerX){
+                this.x -=this.speed;
+            }
+            if(this.y>tigerY){
+                this.y -=this.speed;
+            }
+            document.getElementById('i16').innerText='导弹位置:x='+this.x+'y='+this.y;
+        }
+    }      
+}
+//目标被击中类
+function Bomb(type,x,y,size){
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.size =size;
+    this.live = true;
+    this.blood = 9;//血量
+    this.bloodDown = function(){
+        if(this.bood>0){
+            this.bood--;
+        }else{
+           this.live = false; 
+        }
+    } 
+}
+//绘制子弹
+function drawBullet(tiger){
+    if(tiger.live){
+        if(tiger.type =='hero'){
+            for(var i=0;i<heroBullets.length;i++){
+                var heroBullet = heroBullets[i];
+                if(heroBullet!=null&heroBullet.live){
+                    pen.beginPath();        
+                    pen.fillStyle = 'yellow';  
+                    pen.arc(heroBullets[i].x,heroBullets[i].y,4*tiger.size,0,360,false);
+                    pen.fill();
+                    pen.closePath();  
+                    //导弹图      
+                }               
+            }
+            if(hero.missileLive){
+                for(var i=0;i<heroMissiles.length;i++){
+                    var heroMissile = heroMissiles[i];
+                    if(heroMissile.live){
+                        pen.beginPath();        
+                        pen.fillStyle = 'red';  
+                        pen.arc(heroMissiles[i].x,heroMissiles[i].y,4*tiger.size,0,360,false);
+                        pen.fill();
+                        pen.closePath(); 
+                    }               
+                }
+            }
+        }else if(tiger.type =='enemy'){
+            for(var i=0;i<enemyBullets.length;i++){
+                var enemyBullet = enemyBullets[i];
+                if(enemyBullet!=null&enemyBullet.live){    
+                    pen.beginPath();        
+                    pen.fillStyle = enemyColor[21];  
+                    pen.arc(enemyBullets[i].x,enemyBullets[i].y,4*tiger.size,0,360,false);
+                    pen.fill();
+                }               
+                pen.closePath();        
+            }
+        }
+                
+    }
+}
+//绘制坦克
+function drawTank(tiger,lock/*,c*/){//tiger属性:类型、位置、方向、大小、颜色       
+    if(tiger.live){ 
+        switch(tiger.direct){
+            case 0://上
+                pen.fillStyle = tiger.color[0];//'#fbdf7c';//车轮//颜色0
+                pen.fillRect(tiger.x,tiger.y,tiger.size*8.4,tiger.size*34);
+                pen.fillRect((tiger.x+tiger.size*26.4),tiger.y,tiger.size*8.4,tiger.size*34);
+
+                pen.fillStyle = tiger.color[1];//'#946716';//轮式//颜色1
+                pen.fillRect(tiger.x,tiger.y,tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*8.6),tiger.size*8.4,tiger.size*3.8);       
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*16.2),tiger.size*8.4,tiger.size*3.8);  
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*23.8),tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*30.4),tiger.size*8.4,tiger.size*3.8); 
+
+                pen.fillRect((tiger.x+tiger.size*26.4),tiger.y,tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*8.6),tiger.size*8.4,tiger.size*3.8);       
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*16.2),tiger.size*8.4,tiger.size*3.8);  
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*23.8),tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*30.4),tiger.size*8.4,tiger.size*3.8); 
+
+                pen.beginPath();
+                pen.fillStyle = tiger.color[2];//'#af4c08';//底盘1//颜色2
+
+                pen.moveTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*5.2));//1
+                pen.lineTo((tiger.x+tiger.size*10.4),(tiger.y+tiger.size*4.4));//2
+                pen.lineTo((tiger.x+tiger.size*24.4),(tiger.y+tiger.size*4.4));//3
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*5.2));//4
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*28.4));//5
+                pen.lineTo((tiger.x+tiger.size*23.2),(tiger.y+tiger.size*30.4));//6
+                pen.lineTo((tiger.x+tiger.size*11.6),(tiger.y+tiger.size*30.4));//7
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*28.4));//8 
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*5.2));//9        
+                pen.fill();
+                pen.closePath();              
+
+                pen.beginPath();//底盘2
+                pen.fillStyle = tiger.color[3];//'#e98223';//颜色3
+                pen.moveTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*8));//1
+                pen.lineTo((tiger.x+tiger.size*11),(tiger.y+tiger.size*8));//2
+                pen.lineTo((tiger.x+tiger.size*11),(tiger.y+tiger.size*6.4));//3
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*6.4));//4
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*8));//5
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*8));//6
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*27));//7
+                pen.lineTo((tiger.x+tiger.size*24.4),(tiger.y+tiger.size*27));//8
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*29.8));//9
+                pen.lineTo((tiger.x+tiger.size*19.4),(tiger.y+tiger.size*29.8));//10
+                pen.lineTo((tiger.x+tiger.size*20.4),(tiger.y+tiger.size*27));//11
+                pen.lineTo((tiger.x+tiger.size*16.4),(tiger.y+tiger.size*27));//12
+                pen.lineTo((tiger.x+tiger.size*16.4),(tiger.y+tiger.size*28.2));//13
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*28.2));//14
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*27));//15
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*27));//16
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*8));//17
+                pen.fill();
+                pen.closePath();               
+
+                pen.fillStyle = tiger.color[4];//'#c3851e';//底盘3//颜色4
+                pen.fillRect((tiger.x+tiger.size*10.6),(tiger.y+tiger.size*10.4),tiger.size*14.2,tiger.size*15);        
+                pen.fillStyle = tiger.color[5];//'#c06902';//底盘3框//颜色5
+                pen.fillRect((tiger.x+tiger.size*10.2),(tiger.y+tiger.size*11),tiger.size*15,tiger.size*15.4); 
+                pen.fillStyle = tiger.color[6];//'#a94200';//底盘3的小矩形//颜色6
+                pen.fillRect((tiger.x+tiger.size*11.8),(tiger.y+tiger.size*24.4),tiger.size*4.2,tiger.size*3.4);    
+
+                pen.beginPath();//炮架底1
+                pen.fillStyle = tiger.color[7];//'#f8a025';//颜色7
+                pen.moveTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*15.4));//1
+                pen.lineTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*22.6));//2
+                pen.lineTo((tiger.x+tiger.size*12),(tiger.y+tiger.size*25.6));//3    
+                pen.lineTo((tiger.x+tiger.size*12.8),(tiger.y+tiger.size*26.4));//4
+                pen.lineTo((tiger.x+tiger.size*23),(tiger.y+tiger.size*26.4));//5 
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*25.6));//6    
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*22.6));//7        
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*15.4));//8 
+                pen.lineTo((tiger.x+tiger.size*22),(tiger.y+tiger.size*8.4));//9 
+                pen.lineTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*8.4));//10 
+                pen.lineTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*15.4));//11               
+                pen.fill();
+                pen.closePath();
+
+                pen.beginPath();//炮架底2
+                pen.fillStyle = tiger.color[8];//'#ffd94d'; //颜色8
+                pen.moveTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*15.4));//1
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*22.6));//2
+                pen.lineTo((tiger.x+tiger.size*14.8),(tiger.y+tiger.size*24.6));//3    
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*25.4));//4
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*25.4));//5 
+                pen.lineTo((tiger.x+tiger.size*21),(tiger.y+tiger.size*24.6));//6    
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*22.6));//7        
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*15.4));//8 
+                pen.lineTo((tiger.x+tiger.size*20.6),(tiger.y+tiger.size*11.4));//9 
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*11.4));//10 
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*15.4));//11  
+                pen.fill();
+                pen.closePath();    
+
+                pen.beginPath();//炮架底2框
+                pen.strokeStyle = tiger.color[9];//'black';//颜色9 
+                pen.moveTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*15.4));//1
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*22.6));//2
+                pen.lineTo((tiger.x+tiger.size*14.8),(tiger.y+tiger.size*24.6));//3    
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*25.4));//4
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*25.4));//5 
+                pen.lineTo((tiger.x+tiger.size*21),(tiger.y+tiger.size*24.6));//6    
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*22.6));//7        
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*15.4));//8 
+                pen.lineTo((tiger.x+tiger.size*20.6),(tiger.y+tiger.size*11.4));//9 
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*11.4));//10 
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*15.4));//11  
+                pen.stroke();
+                pen.closePath();   
+
+                pen.beginPath();//炮架上底
+                pen.fillStyle = tiger.color[10];//'#e1b037';//颜色10
+                pen.moveTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*8.4));
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*11.4));
+                pen.lineTo((tiger.x+tiger.size*20.6),(tiger.y+tiger.size*11.4));  
+                pen.lineTo((tiger.x+tiger.size*22),(tiger.y+tiger.size*8.4));
+                pen.lineTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*8.4));          
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//炮架下底
+                pen.fillStyle = tiger.color[11];//'#d6730b';//颜色11
+                pen.moveTo((tiger.x+tiger.size*12.8),(tiger.y+tiger.size*26.4));
+                pen.lineTo((tiger.x+tiger.size*23),(tiger.y+tiger.size*26.4));
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*25.4));
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*25.4));
+                pen.lineTo((tiger.x+tiger.size*12.8),(tiger.y+tiger.size*26.4));
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底1
+                pen.fillStyle = tiger.color[12];//'#e69a11';//颜色12
+                var circleX = tiger.size*17.6+tiger.x;
+                var circleY = tiger.size*17+tiger.y+tiger.size*2;
+                var circleR = tiger.size*(21.8-14.4)/2;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底2
+                pen.fillStyle = tiger.color[13];//'#fbd246';//颜色13
+                var circleX =tiger.size*17.6+tiger.x;
+                var circleY =tiger.size*17+tiger.y+tiger.size*2;
+                var circleR =tiger.size*(21.8-14.4)/2.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//圆形炮架底3
+                pen.fillStyle = tiger.color[14];//'#cf7a03';//颜色14
+                var circleX =tiger.size*17.6+tiger.x;
+                var circleY =tiger.size*17+tiger.y+tiger.size*2;
+                var circleR = tiger.size*(21.8-14.4)/3.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                // pen.arc(circleX,circleY,(circleR+30),0,360,false);  锁定
+                pen.fill();
+                pen.closePath();      
+
+                pen.fillStyle = tiger.color[15];//'#cf7a03';//炮筒上//颜色15
+                pen.fillRect((circleX-tiger.size*3.4),(tiger.y-tiger.size*10),tiger.size*6.8,tiger.size*3);  
+
+                pen.fillStyle = tiger.color[16];//'#cc7937';//炮筒中//颜色16
+                pen.fillRect((circleX-tiger.size*1.6),(tiger.y-tiger.size*7),tiger.size*3.2,tiger.size*16.8);
+
+                pen.beginPath();//车饰边框左
+                pen.strokeStyle = tiger.color[17];//'#d4741d';//颜色17
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*5.4),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*4.6),(tiger.y+tiger.size*30.8));
+                pen.lineTo((tiger.x+tiger.size*4.6),(tiger.y+tiger.size*6.4));
+                pen.lineTo((tiger.x+tiger.size*6.6),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*2.6));    
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充左
+                pen.fillStyle = tiger.color[18];//'#ffcc5a';//颜色18
+                pen.moveTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*5.6),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*4.8),(tiger.y+tiger.size*31));
+                pen.lineTo((tiger.x+tiger.size*4.8),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*6.8),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*2.8));   
+                pen.fill();
+                pen.closePath();
+
+
+                pen.beginPath();//车饰边框右
+                pen.strokeStyle = tiger.color[19];//'#d4741d';//颜色19
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*29.8),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*30.8));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*6.4));
+                pen.lineTo((tiger.x+tiger.size*28.6),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*2.6));    
+                // pen.fill();
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充右
+                pen.fillStyle = tiger.color[20];//'#ffcc5a';//颜色20
+                pen.moveTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*29.6),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*31));
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*28.4),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*2.8));
+                pen.fill();
+                pen.closePath(); 
+                if(lock&&tiger.type=='enemy'&&tiger.lock&&hero.live){
+                    pen.save(); 
+                    pen.beginPath(); 
+                    pen.setLineDash([5,10]);
+                    pen.lineWidth = 2;
+                    pen.strokeStyle = tiger.color[22];
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;
+                    pen.arc(circleX,circleY,circleR,0,360,false);                
+                    pen.stroke();
+                    pen.closePath();
+                    pen.restore();
+                }
+                if(tiger.type=='hero'&&tiger.live&&immune){
+                    pen.save();
+                    pen.beginPath();
+                    pen.strokeStyel = 'white';
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;     
+                    pen.globalAlpha = 0.6;
+                    pen.arc(circleX,circleY,circleR,0,360,false);
+                    pen.fill();              
+                    pen.closePath();
+                    pen.restore();
+                }
+            break;
+            case 2://下
+                pen.fillStyle = tiger.color[0];//'#fbdf7c';//车轮//颜色0
+                pen.fillRect(tiger.x,tiger.y,tiger.size*8.4,tiger.size*34);
+                pen.fillRect((tiger.x+tiger.size*26.4),tiger.y,tiger.size*8.4  ,tiger.size*34);
+
+                pen.fillStyle = tiger.color[1];//'#946716';//轮式//颜色1
+                pen.fillRect(tiger.x,tiger.y,tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*8.6),tiger.size*8.4,tiger.size*3.8);       
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*16.2),tiger.size*8.4,tiger.size*3.8);  
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*23.8),tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*30.4),tiger.size*8.4,tiger.size*3.8); 
+
+                pen.fillRect((tiger.x+tiger.size*26.4),tiger.y,tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*8.6),tiger.size*8.4,tiger.size*3.8);       
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*16.2),tiger.size*8.4,tiger.size*3.8);  
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*23.8),tiger.size*8.4,tiger.size*3.8); 
+                pen.fillRect((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*30.4),tiger.size*8.4,tiger.size*3.8); 
+
+                pen.beginPath();
+                pen.fillStyle = tiger.color[2];//'#af4c08';//底盘1//颜色2
+
+                pen.moveTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*29.8));//1
+                pen.lineTo((tiger.x+tiger.size*10.4),(tiger.y+tiger.size*30.6));//2
+                pen.lineTo((tiger.x+tiger.size*24.4),(tiger.y+tiger.size*30.6));//3
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*29.8));//4
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*7.2));//5
+                pen.lineTo((tiger.x+tiger.size*23.2),(tiger.y+tiger.size*4.6));//6
+                pen.lineTo((tiger.x+tiger.size*11.6),(tiger.y+tiger.size*4.6));//7
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*7.2));//8 
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*32));//9        
+                pen.fill();
+                pen.closePath();              
+
+                pen.beginPath();//底盘2
+                pen.fillStyle = tiger.color[3];//'#e98223';//颜色3
+                pen.moveTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*27));//16                          
+                pen.lineTo((tiger.x+tiger.size*11),(tiger.y+tiger.size*27));//2                
+                pen.lineTo((tiger.x+tiger.size*11),(tiger.y+tiger.size*28.6));//3  
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*28.6));//4
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*27));//5                            
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*27));//7       
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*8));//6                   
+                pen.lineTo((tiger.x+tiger.size*24.4),(tiger.y+tiger.size*8));//8
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*5.2));//9
+                pen.lineTo((tiger.x+tiger.size*19.4),(tiger.y+tiger.size*5.2));//10
+                pen.lineTo((tiger.x+tiger.size*20.4),(tiger.y+tiger.size*8));//11
+                pen.lineTo((tiger.x+tiger.size*16.4),(tiger.y+tiger.size*8));//12
+                pen.lineTo((tiger.x+tiger.size*16.4),(tiger.y+tiger.size*6.8));//13
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*6.8));//14
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*8));//15
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*8));//1
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*27));//16  
+                pen.fill();
+                pen.closePath();             
+
+                pen.fillStyle = tiger.color[4];//'#c3851e';//底盘3//颜色4
+                pen.fillRect((tiger.x+tiger.size*10.6),(tiger.y+tiger.size*10.4),tiger.size*14.2,tiger.size*15);        
+                pen.fillStyle = tiger.color[5];//'#c06902';//底盘3框//颜色5
+                pen.fillRect((tiger.x+tiger.size*10.2),(tiger.y+tiger.size*11),tiger.size*15,tiger.size*15.4); 
+                pen.fillStyle = tiger.color[6];//'#a94200';//底盘3的小矩形//颜色6
+                pen.fillRect((tiger.x+tiger.size*11.8),(tiger.y+tiger.size*7.2),tiger.size*4.2,tiger.size*3.4);  
+
+                pen.beginPath();//炮架底1
+                pen.fillStyle = tiger.color[7];//'#f8a025';//颜色7
+                pen.moveTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*20.4));//1
+                pen.lineTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*11.6));//2
+                pen.lineTo((tiger.x+tiger.size*12),(tiger.y+tiger.size*10.2));//3    
+                pen.lineTo((tiger.x+tiger.size*12.8),(tiger.y+tiger.size*9));//4
+                pen.lineTo((tiger.x+tiger.size*23),(tiger.y+tiger.size*9));//5 
+                pen.lineTo((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*10.2));//6    
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*11.6));//7        
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*20.4));//8 
+                pen.lineTo((tiger.x+tiger.size*22),(tiger.y+tiger.size*27.4));//9 
+                pen.lineTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*27.4));//10 
+                pen.lineTo((tiger.x+tiger.size*10.8),(tiger.y+tiger.size*20.4));//11               
+                pen.fill();
+                pen.closePath();      
+  
+                pen.beginPath();//炮架底2
+                pen.fillStyle = tiger.color[8];//'#ffd94d';//颜色8
+                pen.moveTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*20));//1
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*13.2));//2
+                pen.lineTo((tiger.x+tiger.size*14.8),(tiger.y+tiger.size*11.2));//3    
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*10.4));//4
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*10.4));//5 
+                pen.lineTo((tiger.x+tiger.size*21),(tiger.y+tiger.size*11.2));//6    
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*13.2));//7        
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*20));//8 
+                pen.lineTo((tiger.x+tiger.size*20.6),(tiger.y+tiger.size*26.4));//9 
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*26.4));//10 
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*20));//11  
+                pen.fill();
+                pen.closePath();            
+
+                pen.beginPath();//炮架底2框
+                pen.strokeStyle = tiger.color[9];//'black';//颜色9 
+                pen.moveTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*20));//1
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*13.2));//2
+                pen.lineTo((tiger.x+tiger.size*14.8),(tiger.y+tiger.size*11.2));//3    
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*10.4));//4
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*10.4));//5 
+                pen.lineTo((tiger.x+tiger.size*21),(tiger.y+tiger.size*11.2));//6    
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*13.2));//7        
+                pen.lineTo((tiger.x+tiger.size*21.8),(tiger.y+tiger.size*20));//8 
+                pen.lineTo((tiger.x+tiger.size*20.6),(tiger.y+tiger.size*26.4));//9 
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*26.4));//10 
+                pen.lineTo((tiger.x+tiger.size*13.6),(tiger.y+tiger.size*20));//11  
+                pen.stroke();
+                pen.closePath();  
+
+                pen.beginPath();//炮架上底
+                pen.fillStyle = tiger.color[10];//'#e1b037';//颜色10
+                pen.moveTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*27.4));//10                 
+                pen.lineTo((tiger.x+tiger.size*22),(tiger.y+tiger.size*27.4));//9 
+                pen.lineTo((tiger.x+tiger.size*20),(tiger.y+tiger.size*24.4));//9 
+                pen.lineTo((tiger.x+tiger.size*15.8),(tiger.y+tiger.size*24.4));//10 
+                pen.lineTo((tiger.x+tiger.size*13.8),(tiger.y+tiger.size*27.4));//10         
+                pen.fill();
+                pen.closePath();                                 
+
+                pen.beginPath();//炮架下底
+                pen.fillStyle = tiger.color[11];//'#d6730b';//颜色11
+                pen.moveTo((tiger.x+tiger.size*23),(tiger.y+tiger.size*9));//5 
+                pen.lineTo((tiger.x+tiger.size*12.8),(tiger.y+tiger.size*9));//4
+                pen.lineTo((tiger.x+tiger.size*15.6),(tiger.y+tiger.size*10.4));//4
+                pen.lineTo((tiger.x+tiger.size*20.2),(tiger.y+tiger.size*10.4));//5 
+                pen.lineTo((tiger.x+tiger.size*23),(tiger.y+tiger.size*9));//5  
+                pen.fill();
+                pen.closePath();                                                                   
+                pen.beginPath();//圆形炮架底1
+                pen.fillStyle = tiger.color[12];//'#e69a11';//颜色12
+                var circleX = tiger.size*35.2/2+tiger.x;
+                var circleY = tiger.size*34/2+tiger.y+tiger.size*0.8;
+                var circleR = tiger.size*(21.8-14.4)/2;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底2
+                pen.fillStyle = tiger.color[13];//'#fbd246';//颜色13
+                var circleX = tiger.size*35.2/2+tiger.x;
+                var circleY = tiger.size*34/2+tiger.y+tiger.size*0.8;
+                var circleR =tiger.size*(21.8-14.4)/2.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//圆形炮架底3
+                pen.fillStyle = tiger.color[14];//'#cf7a03';//颜色14
+                var circleX = tiger.size*35.2/2+tiger.x;
+                var circleY = tiger.size*34/2+tiger.y+tiger.size*0.8;
+                var circleR = tiger.size*(21.8-14.4)/3.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();   
+
+                pen.fillStyle = tiger.color[15];//'#cf7a03';//炮筒上//颜色15
+                pen.fillRect((circleX-tiger.size*6.8/2),(tiger.y+tiger.size*42.8),tiger.size*6.8,tiger.size*3);  
+
+                pen.fillStyle = tiger.color[16];//'#cc7937';//炮筒中//颜色16
+                pen.fillRect((circleX-tiger.size*3.2/2),(tiger.y+tiger.size*26),tiger.size*3.2,tiger.size*16.8);
+
+                pen.beginPath();//车饰边框左
+                pen.strokeStyle = tiger.color[17];//'#d4741d';//颜色17
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*5.4),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*4.6),(tiger.y+tiger.size*30.8));
+                pen.lineTo((tiger.x+tiger.size*4.6),(tiger.y+tiger.size*6.4));
+                pen.lineTo((tiger.x+tiger.size*6.6),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*2.6));    
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充左
+                pen.fillStyle = tiger.color[18];//'#ffcc5a';//颜色18
+                pen.moveTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*5.6),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*4.8),(tiger.y+tiger.size*31));
+                pen.lineTo((tiger.x+tiger.size*4.8),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*6.8),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*9.2),(tiger.y+tiger.size*2.8));   
+                pen.fill();
+                pen.closePath();
+
+
+                pen.beginPath();//车饰边框右
+                pen.strokeStyle = tiger.color[19];//'#d4741d';//颜色19
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*29.8),(tiger.y+tiger.size*32.6));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*30.8));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*6.4));
+                pen.lineTo((tiger.x+tiger.size*28.6),(tiger.y+tiger.size*2.6));
+                pen.lineTo((tiger.x+tiger.size*25.8),(tiger.y+tiger.size*2.6));    
+                // pen.fill();
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充右
+                pen.fillStyle = tiger.color[20];//'#ffcc5a';//颜色20
+                pen.moveTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*29.6),(tiger.y+tiger.size*32.4));
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*31));
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*28.4),(tiger.y+tiger.size*2.8));
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*2.8));
+                pen.fill();
+                pen.closePath();                                                                         
+                if(lock&&tiger.type=='enemy'&&tiger.lock&&hero.live){
+                    pen.save(); 
+                    pen.beginPath(); 
+                    pen.setLineDash([5,10]);
+                    pen.lineWidth = 2;
+                    pen.strokeStyle = tiger.color[22];
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;
+                    pen.arc(circleX,circleY,circleR,0,360,false);                
+                    pen.stroke();
+                    pen.closePath();
+                    pen.restore();
+                }
+                if(tiger.type=='hero'&&tiger.live&&immune){
+                    pen.save();
+                    pen.beginPath();
+                    pen.strokeStyel = 'white';
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;     
+                    pen.globalAlpha = 0.6;
+                    pen.arc(circleX,circleY,circleR,0,360,false);
+                    pen.fill();              
+                    pen.closePath();
+                    pen.restore();
+                }                
+            break;
+            case 1://右
+                pen.fillStyle = tiger.color[0];//'#fbdf7c';//车轮//颜色0
+                pen.fillRect(tiger.x,tiger.y,tiger.size*34,tiger.size*8.4);
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*26.4),tiger.size*34,tiger.size*8.4);
+
+                pen.fillStyle = tiger.color[1];//'#946716';//轮式//颜色1
+                pen.fillRect((tiger.x+tiger.size*30.2),tiger.y,tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*21.6),tiger.y,tiger.size*3.8,tiger.size*8.4);       
+                pen.fillRect((tiger.x+tiger.size*14),tiger.y,tiger.size*3.8,tiger.size*8.4);  
+                pen.fillRect((tiger.x+tiger.size*6.4),tiger.y,tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x-tiger.size),tiger.y,tiger.size*3.8,tiger.size*8.4); 
+
+                pen.fillRect((tiger.x+tiger.size*30.2),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*21.6),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4);       
+                pen.fillRect((tiger.x+tiger.size*14),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4);  
+                pen.fillRect((tiger.x+tiger.size*6.4),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x-tiger.size),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+
+                pen.beginPath();
+                pen.fillStyle = tiger.color[2];//'#af4c08';//底盘1//颜色2
+
+                pen.moveTo((tiger.x+tiger.size*28.8),(tiger.y+tiger.size*8.4));//1
+                pen.lineTo((tiger.x+tiger.size*29.6),(tiger.y+tiger.size*10.4));//2
+                pen.lineTo((tiger.x+tiger.size*29.6),(tiger.y+tiger.size*24.4));//3
+                pen.lineTo((tiger.x+tiger.size*28.8),(tiger.y+tiger.size*26.4));//4
+                pen.lineTo((tiger.x+tiger.size*5.6),(tiger.y+tiger.size*26.4));//5
+                pen.lineTo((tiger.x+tiger.size*3.6),(tiger.y+tiger.size*23.2));//6
+                pen.lineTo((tiger.x+tiger.size*3.6),(tiger.y+tiger.size*11.6));//7
+                pen.lineTo((tiger.x+tiger.size*6.2),(tiger.y+tiger.size*8.4));//8 
+                pen.lineTo((tiger.x+tiger.size*28.8),(tiger.y+tiger.size*8.4));//9        
+                pen.fill();
+                pen.closePath();
+
+                pen.beginPath();//底盘2
+                pen.fillStyle = tiger.color[3];//'#e98223';//颜色3
+                pen.moveTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*8.4));//1
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*11));//2
+                pen.lineTo((tiger.x+tiger.size*27.6),(tiger.y+tiger.size*11));//3
+                pen.lineTo((tiger.x+tiger.size*27.6),(tiger.y+tiger.size*23.8));//4
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*23.8));//5
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*26.4));//6
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*26.4));//7
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*24.4));//8
+                pen.lineTo((tiger.x+tiger.size*4.2),(tiger.y+tiger.size*25.4));//9
+                pen.lineTo((tiger.x+tiger.size*4.2),(tiger.y+tiger.size*19.4));//10
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*20.4));//11
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*16.4));//12
+                pen.lineTo((tiger.x+tiger.size*5.8),(tiger.y+tiger.size*16.4));//13
+                pen.lineTo((tiger.x+tiger.size*5.8),(tiger.y+tiger.size*11.4));//14
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*11.4));//15
+                pen.lineTo((tiger.x+tiger.size*7),(tiger.y+tiger.size*8.4));//16
+                pen.lineTo((tiger.x+tiger.size*26),(tiger.y+tiger.size*8.4));//17
+                pen.fill();
+                pen.closePath();               
+
+                pen.fillStyle = tiger.color[4];//'#c3851e';//底盘3//颜色4
+                pen.fillRect((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*10.6),tiger.size*15,tiger.size*14.2);        
+                pen.fillStyle = tiger.color[5];//'#c06902';//底盘3框//颜色5
+                pen.fillRect((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*10.2),tiger.size*15.4,tiger.size*15); 
+                pen.fillStyle = tiger.color[6];//'#a94200';//底盘3的小矩形//颜色6
+                pen.fillRect((tiger.x+tiger.size*6.2),(tiger.y+tiger.size*11.8),tiger.size*3.4,tiger.size*4.2);    
+
+                pen.beginPath();//炮架底1
+                pen.fillStyle = tiger.color[7];//'#f8a025';//颜色7
+                pen.moveTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*10.8));//1
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*10.8));//2
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*12));//3    
+                pen.lineTo((tiger.x+tiger.size*7.6),(tiger.y+tiger.size*12.8));//4
+                pen.lineTo((tiger.x+tiger.size*7.6),(tiger.y+tiger.size*23));//5 
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*23.8));//6    
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*24.6));//7        
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*24.6));//8 
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*22));//9 
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*13.8));//10 
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*10.8));//11               
+                pen.fill();
+                pen.closePath();
+
+                pen.beginPath();//炮架底2
+                pen.fillStyle = tiger.color[8];//'#ffd94d'; //颜色8
+                pen.moveTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*13.6));//1
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*13.6));//2
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*14.8));//3    
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*15.6));//4
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*20.2));//5 
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*20.2));//6    
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*21.8));//7        
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*21.8));//8 
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*20));//9 
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*15.8));//10 
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*13.6));//11  
+                pen.fill();
+                pen.closePath();
+                
+         
+                pen.beginPath();//炮架底2框
+                pen.strokeStyle = tiger.color[9];//'black';//颜色9
+                pen.moveTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*13.6));//1
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*13.6));//2
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*14.8));//3    
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*15.6));//4
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*20.2));//5 
+                pen.lineTo((tiger.x+tiger.size*9.4),(tiger.y+tiger.size*21));//6    
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*21.8));//7        
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*21.8));//8 
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*20));//9 
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*15.8));//10 
+                pen.lineTo((tiger.x+tiger.size*18.6),(tiger.y+tiger.size*13.6));//11  
+                pen.stroke();
+                pen.closePath();                  
+
+                pen.beginPath();//炮架上底
+                pen.fillStyle = tiger.color[10];//'#e1b037';//颜色10
+                pen.moveTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*13.8));
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*15.8));
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*20));  
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*22));
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*13.8));          
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//炮架下底
+                pen.fillStyle = tiger.color[11];//'#d6730b';//颜色11
+                pen.moveTo((tiger.x+tiger.size*7.6),(tiger.y+tiger.size*12.8));
+                pen.lineTo((tiger.x+tiger.size*7.6),(tiger.y+tiger.size*23));
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*20.2));
+                pen.lineTo((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*15.6));
+                pen.lineTo((tiger.x+tiger.size*7.6),(tiger.y+tiger.size*12.8));
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底1
+                pen.fillStyle = tiger.color[12];//'#e69a11';//颜色12
+                var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x-tiger.size*2;
+                var circleR = tiger.size*(21.8-14.4)/2;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底2
+                pen.fillStyle = tiger.color[13];//'#fbd246';//颜色13
+                var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x-tiger.size*2;
+                var circleR =tiger.size*(21.8-14.4)/2.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//圆形炮架底3
+                pen.fillStyle = tiger.color[14];//'#cf7a03';//颜色14
+                 var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x-tiger.size*2;
+                var circleR = tiger.size*(21.8-14)/3.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();    
+
+                pen.fillStyle = tiger.color[15];//'#cf7a03';//炮筒上//颜色15
+                pen.fillRect((tiger.x+tiger.size*40.8),(circleY-tiger.size*6.8/2),tiger.size*3,tiger.size*6.8);  
+
+                pen.fillStyle = tiger.color[16];//'#cc7937';//炮筒中//颜色16
+                pen.fillRect((tiger.x+tiger.size*24),(circleY-tiger.size*3.2/2),tiger.size*16.8,tiger.size*3.2);
+
+                pen.beginPath();//车饰边框左
+                pen.strokeStyle = tiger.color[17];//'#d4741d';//颜色17
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*9.4));
+                pen.lineTo((tiger.x+tiger.size*1.4),(tiger.y+tiger.size*9.4));
+                pen.lineTo((tiger.x+tiger.size*1.4),(tiger.y+tiger.size*5.4));
+                pen.lineTo((tiger.x+tiger.size*3.2),(tiger.y+tiger.size*4.6));
+                pen.lineTo((tiger.x+tiger.size*27.6),(tiger.y+tiger.size*4.6));
+                pen.lineTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*9.4));    
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充左
+                pen.fillStyle = tiger.color[18];//'#ffcc5a';//颜色18
+                pen.moveTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*9.2));
+                pen.lineTo((tiger.x+tiger.size*1.6),(tiger.y+tiger.size*9.2));
+                pen.lineTo((tiger.x+tiger.size*1.6),(tiger.y+tiger.size*5.6));
+                pen.lineTo((tiger.x+tiger.size*3),(tiger.y+tiger.size*4.8));
+                pen.lineTo((tiger.x+tiger.size*27.4),(tiger.y+tiger.size*4.8));
+                pen.lineTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*6.8));
+                pen.lineTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*9.2));   
+                pen.fill();
+                pen.closePath();
+
+
+                pen.beginPath();//车饰边框右
+                pen.strokeStyle = tiger.color[19];//'#d4741d';//颜色19
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*25.8));
+                pen.lineTo((tiger.x+tiger.size*1.4),(tiger.y+tiger.size*25.8));
+                pen.lineTo((tiger.x+tiger.size*1.4),(tiger.y+tiger.size*29.8));
+                pen.lineTo((tiger.x+tiger.size*3.2),(tiger.y+tiger.size*30.6));
+                pen.lineTo((tiger.x+tiger.size*27.6),(tiger.y+tiger.size*30.6));
+                pen.lineTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*28.6));
+                pen.lineTo((tiger.x+tiger.size*31.4),(tiger.y+tiger.size*25.8));
+                // pen.fill();
+                pen.stroke();
+                pen.closePath();               
+
+                pen.beginPath();//车饰填充右
+                pen.fillStyle = tiger.color[20];//'#ffcc5a';//颜色20
+                pen.moveTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*26));
+                pen.lineTo((tiger.x+tiger.size*1.6),(tiger.y+tiger.size*26));
+                pen.lineTo((tiger.x+tiger.size*1.6),(tiger.y+tiger.size*30.2));
+                pen.lineTo((tiger.x+tiger.size*3),(tiger.y+tiger.size*30.4));
+                pen.lineTo((tiger.x+tiger.size*27.4),(tiger.y+tiger.size*30.4));
+                pen.lineTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*28.4));
+                pen.lineTo((tiger.x+tiger.size*31.2),(tiger.y+tiger.size*26));
+                pen.fill();
+                pen.closePath();              
+                if(lock&&tiger.type=='enemy'&&tiger.lock&&hero.live){
+                    pen.save(); 
+                    pen.beginPath(); 
+                    pen.setLineDash([5,10]);
+                    pen.lineWidth = 2;
+                    pen.strokeStyle = tiger.color[22];
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;
+                    pen.arc(circleX,circleY,circleR,0,360,false);                
+                    pen.stroke();
+                    pen.closePath();
+                    pen.restore();
+                }
+                if(tiger.type=='hero'&&tiger.live&&immune){
+                    pen.save();
+                    pen.beginPath();
+                    pen.strokeStyel = 'white';
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;     
+                    pen.globalAlpha = 0.6;
+                    pen.arc(circleX,circleY,circleR,0,360,false);
+                    pen.fill();              
+                    pen.closePath();
+                    pen.restore();
+                }                
+            break;          
+            case 3://左
+                pen.fillStyle = tiger.color[0];//'#fbdf7c';//车轮//颜色0
+                pen.fillRect(tiger.x,tiger.y,tiger.size*34,tiger.size*8.4);
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*26.4),tiger.size*34,tiger.size*8.4);
+
+                pen.fillStyle = tiger.color[1];//'#946716';//轮式//颜色1
+                pen.fillRect(tiger.x,tiger.y,tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*8.6),tiger.y,tiger.size*3.8,tiger.size*8.4);       
+                pen.fillRect((tiger.x+tiger.size*16.2),tiger.y,tiger.size*3.8,tiger.size*8.4);  
+                pen.fillRect((tiger.x+tiger.size*23.8),tiger.y,tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*30.4),tiger.y,tiger.size*3.8,tiger.size*8.4); 
+
+                pen.fillRect(tiger.x,(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*8.6),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4);       
+                pen.fillRect((tiger.x+tiger.size*16.2),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4);  
+                pen.fillRect((tiger.x+tiger.size*23.8),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+                pen.fillRect((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*26.4),tiger.size*3.8,tiger.size*8.4); 
+
+                pen.beginPath();
+                pen.fillStyle = tiger.color[2];//'#af4c08';//底盘1//颜色2
+
+                pen.moveTo((tiger.x+tiger.size*5.2),(tiger.y+tiger.size*8.4));//1
+                pen.lineTo((tiger.x+tiger.size*4.4),(tiger.y+tiger.size*10.4));//2
+                pen.lineTo((tiger.x+tiger.size*4.4),(tiger.y+tiger.size*24.4));//3
+                pen.lineTo((tiger.x+tiger.size*5.2),(tiger.y+tiger.size*26.4));//4
+                pen.lineTo((tiger.x+tiger.size*28.4),(tiger.y+tiger.size*26.4));//5
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*23.2));//6
+                pen.lineTo((tiger.x+tiger.size*30.4),(tiger.y+tiger.size*11.6));//7
+                pen.lineTo((tiger.x+tiger.size*27.8),(tiger.y+tiger.size*8.4));//8 
+                pen.lineTo((tiger.x+tiger.size*5.2),(tiger.y+tiger.size*8.4));//9        
+                pen.fill();
+
+                pen.beginPath();//底盘2
+                pen.fillStyle = tiger.color[3];//'#e98223';//颜色3
+                pen.moveTo((tiger.x+tiger.size*8),(tiger.y+tiger.size*8.4));//1
+                pen.lineTo((tiger.x+tiger.size*8),(tiger.y+tiger.size*11));//2
+                pen.lineTo((tiger.x+tiger.size*6.4),(tiger.y+tiger.size*11));//3
+                pen.lineTo((tiger.x+tiger.size*6.4),(tiger.y+tiger.size*23.8));//4
+                pen.lineTo((tiger.x+tiger.size*8),(tiger.y+tiger.size*23.8));//5
+                pen.lineTo((tiger.x+tiger.size*8),(tiger.y+tiger.size*26.4));//6
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*26.4));//7
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*24.4));//8
+                pen.lineTo((tiger.x+tiger.size*29.8),(tiger.y+tiger.size*25.4));//9
+                pen.lineTo((tiger.x+tiger.size*29.8),(tiger.y+tiger.size*19.4));//10
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*20.4));//11
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*16.4));//12
+                pen.lineTo((tiger.x+tiger.size*28.2),(tiger.y+tiger.size*16.4));//13
+                pen.lineTo((tiger.x+tiger.size*28.2),(tiger.y+tiger.size*11.4));//14
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*11.4));//15
+                pen.lineTo((tiger.x+tiger.size*27),(tiger.y+tiger.size*8.4));//16
+                pen.lineTo((tiger.x+tiger.size*8),(tiger.y+tiger.size*8.4));//17
+                pen.fill();
+                pen.closePath();               
+
+                pen.fillStyle = tiger.color[4];//'#c3851e';//底盘3//颜色4
+                pen.fillRect((tiger.x+tiger.size*10.4),(tiger.y+tiger.size*10.6),tiger.size*15,tiger.size*14.2);        
+                pen.fillStyle = tiger.color[5];//'#c06902';//底盘3框//颜色5
+                pen.fillRect((tiger.x+tiger.size*10),(tiger.y+tiger.size*10.2),tiger.size*15.4,tiger.size*15); 
+                pen.fillStyle = tiger.color[6];//'#a94200';//底盘3的小矩形//颜色6
+                pen.fillRect((tiger.x+tiger.size*24.4),(tiger.y+tiger.size*11.8),tiger.size*3.4,tiger.size*4.2);    
+
+                pen.beginPath();//炮架底1
+                pen.fillStyle = tiger.color[7];//'#f8a025';//颜色7
+                pen.moveTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*10.8));//1
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*10.8));//2
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*12));//3    
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*12.8));//4
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*23));//5 
+                pen.lineTo((tiger.x+tiger.size*25.6),(tiger.y+tiger.size*23.8));//6    
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*24.6));//7        
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*24.6));//8 
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*22));//9 
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*13.8));//10 
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*10.8));//11               
+                pen.fill();
+                pen.closePath();
+
+                pen.beginPath();//炮架底2
+                pen.fillStyle = tiger.color[8];//'#ffd94d'; //颜色8
+                pen.moveTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*13.6));//1
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*13.6));//2
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*14.8));//3    
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*15.6));//4
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*20.2));//5 
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*21));//6    
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*21.8));//7        
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*21.8));//8 
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*20));//9 
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*15.8));//10 
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*13.6));//11  
+                pen.fill();
+                pen.closePath();
+         
+                pen.beginPath();//炮架底2框
+                pen.strokeStyle = tiger.color[9];//'black';//颜色9 
+                pen.moveTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*13.6));//1
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*13.6));//2
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*14.8));//3    
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*15.6));//4
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*20.2));//5 
+                pen.lineTo((tiger.x+tiger.size*24.6),(tiger.y+tiger.size*21));//6    
+                pen.lineTo((tiger.x+tiger.size*22.6),(tiger.y+tiger.size*21.8));//7        
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*21.8));//8 
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*20));//9 
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*15.8));//10 
+                pen.lineTo((tiger.x+tiger.size*15.4),(tiger.y+tiger.size*13.6));//11  
+                pen.stroke();
+                pen.closePath();   
+
+                pen.beginPath();//炮架上底
+                pen.fillStyle = tiger.color[10];//'#e1b037';//颜色10
+                pen.moveTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*13.8));
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*15.8));
+                pen.lineTo((tiger.x+tiger.size*11.4),(tiger.y+tiger.size*20));  
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*22));
+                pen.lineTo((tiger.x+tiger.size*8.4),(tiger.y+tiger.size*13.8));          
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//炮架下底
+                pen.fillStyle = tiger.color[11];//'#d6730b';//颜色11
+                pen.moveTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*12.8));
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*23));
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*20.2));
+                pen.lineTo((tiger.x+tiger.size*25.4),(tiger.y+tiger.size*15.6));
+                pen.lineTo((tiger.x+tiger.size*26.4),(tiger.y+tiger.size*12.8));
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底1
+                pen.fillStyle = tiger.color[12];//'#e69a11';//颜色12
+                var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x+tiger.size*2;
+                var circleR = tiger.size*(21.8-14.4)/2;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();  
+
+                pen.beginPath();//圆形炮架底2
+                pen.fillStyle = tiger.color[13];//'#fbd246';//颜色13
+                var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x+tiger.size*2;
+                var circleR =tiger.size*(21.8-14.4)/2.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath(); 
+
+                pen.beginPath();//圆形炮架底3
+                pen.fillStyle = tiger.color[14];//'#cf7a03';//颜色14
+                 var circleY = tiger.size*17.6+tiger.y;
+                var circleX = tiger.size*34/2+tiger.x+tiger.size*2;
+                var circleR = tiger.size*(21.8-14.4)/3.5;
+                pen.arc(circleX,circleY,circleR,0,360,false);
+                pen.fill();
+                pen.closePath();    
+
+                pen.fillStyle = tiger.color[15];//'#cf7a03';//炮筒上//颜色15
+                pen.fillRect((tiger.x-tiger.size*9.8),(circleY-tiger.size*6.8/2),tiger.size*3,tiger.size*6.8);  
+
+                pen.fillStyle = tiger.color[16];//'#cc7937';//炮筒中//颜色16
+                pen.fillRect((tiger.x-tiger.size*6.8),(circleY-tiger.size*3.2/2),tiger.size*16.8,tiger.size*3.2);
+
+                pen.beginPath();//车饰边框左
+                pen.strokeStyle = tiger.color[17];//'#d4741d';//颜色17
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*9.4));
+                pen.lineTo((tiger.x+tiger.size*32.6),(tiger.y+tiger.size*9.4));
+                pen.lineTo((tiger.x+tiger.size*32.6),(tiger.y+tiger.size*5.4));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*4.6));
+                pen.lineTo((tiger.x+tiger.size*6.4),(tiger.y+tiger.size*4.6));
+                pen.lineTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*6.6));
+                pen.lineTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*9.4));    
+                pen.stroke();
+                pen.closePath();             
+
+                pen.beginPath();//车饰填充左
+                pen.fillStyle = tiger.color[18];//'#ffcc5a';//颜色18
+                pen.moveTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*9.2));
+                pen.lineTo((tiger.x+tiger.size*32.4),(tiger.y+tiger.size*9.2));
+                pen.lineTo((tiger.x+tiger.size*32.4),(tiger.y+tiger.size*5.6));
+                pen.lineTo((tiger.x+tiger.size*31),(tiger.y+tiger.size*4.8));
+                pen.lineTo((tiger.x+tiger.size*6.6),(tiger.y+tiger.size*4.8));
+                pen.lineTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*6.8));
+                pen.lineTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*9.2));   
+                pen.fill();
+                pen.closePath();
+
+
+                pen.beginPath();//车饰边框右
+                pen.strokeStyle = tiger.color[19];//'#d4741d';//颜色19
+                pen.lineWidth = 2;
+                pen.moveTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*25.8));
+                pen.lineTo((tiger.x+tiger.size*32.6),(tiger.y+tiger.size*25.8));
+                pen.lineTo((tiger.x+tiger.size*32.6),(tiger.y+tiger.size*29.8));
+                pen.lineTo((tiger.x+tiger.size*30.6),(tiger.y+tiger.size*30.6));
+                pen.lineTo((tiger.x+tiger.size*6.4),(tiger.y+tiger.size*30.6));
+                pen.lineTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*28.6));
+                pen.lineTo((tiger.x+tiger.size*2.6),(tiger.y+tiger.size*25.8));
+                // pen.fill();
+                pen.stroke();
+                pen.closePath();
+
+                pen.beginPath();//车饰填充右
+                pen.fillStyle = tiger.color[20];//'#ffcc5a';//颜色20
+                pen.moveTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*26));
+                pen.lineTo((tiger.x+tiger.size*32.4),(tiger.y+tiger.size*26));
+                pen.lineTo((tiger.x+tiger.size*32.4),(tiger.y+tiger.size*30.2));
+                pen.lineTo((tiger.x+tiger.size*31),(tiger.y+tiger.size*30.4));
+                pen.lineTo((tiger.x+tiger.size*6.6),(tiger.y+tiger.size*30.4));
+                pen.lineTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*28.4));
+                pen.lineTo((tiger.x+tiger.size*2.8),(tiger.y+tiger.size*26));
+                pen.fill();
+                pen.closePath();             
+                if(lock&&tiger.type=='enemy'&&tiger.lock&&tiger.live&&hero.live){
+                    pen.save(); 
+                    pen.beginPath(); 
+                    pen.setLineDash([5,10]);
+                    pen.lineWidth = 2;
+                    pen.strokeStyle = tiger.color[22];
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;
+                    pen.arc(circleX,circleY,circleR,0,360,false);                
+                    pen.stroke();
+                    pen.closePath();
+                    pen.restore();
+                }
+                if(tiger.type=='hero'&&tiger.live&&immune){
+                    pen.save();
+                    pen.beginPath();
+                    pen.strokeStyel = 'white';
+                    var circleX = tiger.size*17.6+tiger.x;
+                    var circleY = tiger.size*17+tiger.y+tiger.size*2-tiger.size*4;
+                    var circleR = tiger.size*28;     
+                    pen.globalAlpha = 0.6;
+                    pen.arc(circleX,circleY,circleR,0,360,false);
+                    pen.fill();              
+                    pen.closePath();
+                    pen.restore();
+                }                
+            break;
+        }        
+    }else{
+        alert('失败');
+    }
+}
+//判断是否命中目标开始
+function heroHit(tiger){//命中坦克
+    if(tiger.type=='hero'){  
+        document.getElementById('i9').innerText = '我方坦克第'+heroBullets.length+'发子弹';
+        for (var i = 0; i < heroBullets.length; i++) {
+            var heroBullet = heroBullets[i];
+            if(heroBullet.live){           
+                for (var j = 0; j < enemyTanks.length; j++) {//遍历敌方坦克
+                    var enemyTank = enemyTanks[j];
+                    if(enemyTank.live){
+                        switch(enemyTank.direct){
+                            case 0:
+                                if ((heroBullet.x+hero.size*2)>=enemyTank.x&&(heroBullet.x-hero.size*4)<=(enemyTank.x+enemyTank.size*34.8)&&(heroBullet.y+hero.size*2)>=enemyTank.y&&(heroBullet.y-hero.size*2)<=(enemyTank.y+enemyTank.size*34)) {
+                                    heroBullet.live = false;
+                                    window.clearInterval(heroBullet.timer);
+                                    enemyTank.live = false;
+                                    window.clearInterval(enemyTank.timer);  
+                                    var enemyBomb = new Bomb(this.type,enemyTank.x,enemyTank.y,enemyTank.size);//创建爆炸图
+                                    enemyBombs.push(enemyBomb);//放入bombs数组中
+                                    enemyNum -=1;
+                                    hitTiger(enemyTank);
+                                }
+                            break;
+                            case 1:
+                                if ((heroBullet.x+hero.size*2)>=enemyTank.x&&(heroBullet.x-hero.size*4)<=(enemyTank.x+enemyTank.size*34)&&(heroBullet.y+hero.size*2)>=enemyTank.y&&(heroBullet.y-hero.size*2)<=(enemyTank.y+enemyTank.size*34.8)) {
+                                    heroBullet.live = false;
+                                    window.clearInterval(heroBullet.timer);
+                                    enemyTank.live = false;
+                                    window.clearInterval(enemyTank.timer);  
+                                    var enemyBomb = new Bomb(this.type,enemyTank.x,enemyTank.y,enemyTank.size);//创建爆炸图
+                                    enemyBombs.push(enemyBomb);//放入bombs数组中
+                                    enemyNum -=1;
+                                    hitTiger(enemyTank);
+                                }
+                            break;
+                            case 2:
+                                if ((heroBullet.x+hero.size*2)>=enemyTank.x&&(heroBullet.x-hero.size*4)<=(enemyTank.x+enemyTank.size*34.8)&&(heroBullet.y+hero.size*2)>=enemyTank.y&&(heroBullet.y-hero.size*2)<=(enemyTank.y+enemyTank.size*34)) {
+                                    heroBullet.live = false;
+                                    window.clearInterval(heroBullet.timer);
+                                    enemyTank.live = false;
+                                    window.clearInterval(enemyTank.timer);  
+                                    var enemyBomb = new Bomb(this.type,enemyTank.x,enemyTank.y,enemyTank.size);//创建爆炸图
+                                    enemyBombs.push(enemyBomb);//放入bombs数组中
+                                    enemyNum -=1;
+                                    hitTiger(enemyTank);
+                                }
+                            break;
+                            case 3:
+                                if ((heroBullet.x+hero.size*2)>=(enemyTank.x)&&(heroBullet.x-hero.size*4)<=(enemyTank.x+enemyTank.size*34.8)&&(heroBullet.y+hero.size*2)>=enemyTank.y&&(heroBullet.y-hero.size*2)<=(enemyTank.y+enemyTank.size*34.8)) {
+                                    heroBullet.live = false;
+                                    window.clearInterval(heroBullet.timer);
+                                    enemyTank.live = false;
+                                    window.clearInterval(enemyTank.timer);  
+                                    var enemyBomb = new Bomb(this.type,enemyTank.x,enemyTank.y,enemyTank.size);//创建爆炸图
+                                    enemyBombs.push(enemyBomb);//放入bombs数组中
+                                    enemyNum -=1;
+                                    hitTiger(enemyTank);
+                                }
+                            break;                                                                        
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+//判断导弹是否命中目标坦克
+function heroMissileHit(tiger){//命中坦克
+    if(tiger.type=='hero'&&tiger.missileLive){
+        for (var i = 0; i <  heroMissiles.length; i++) {
+            var  heroMissile =  heroMissiles[i];
+             if(heroMissile.live){           
+                for (var j = 0; j < enemyTanks.length; j++) {//遍历敌方坦克
+                    if(enemyTanks[j].lock){
+                        document.getElementById('i18').innerText=enemyTanks[j].code;
+                        var enemyTank = enemyTanks[j];
+                        if(enemyTank.live){
+                            if(heroMissile.x>=enemyTank.x&&heroMissile.x<=(enemyTank.x+enemyTank.size*34.8)&&heroMissile.y>=enemyTank.y&&heroMissile.y<=(enemyTank.y+enemyTank.size*34)){
+                                heroMissile.live = false;
+                                window.clearInterval(heroMissile.timer);
+                                enemyTank.live = false;
+                                enemyTank.lock = false;
+                                window.clearInterval(enemyTank.live);
+                                var enemyBomb = new Bomb(this.type,enemyTank.x,enemyTank.y,enemyTank.size);//创建爆炸图
+                                enemyBombs.push(enemyBomb);//放入bombs数组中
+                                hitTiger(enemyTank);
+                            }
+
+                        }
+                    }                  
+                }
+            }           
+        }
+    }
+}
+//敌方坦克命中我方坦克
+function enemyHit(enemyBullet){
+    switch(hero.direct){
+        case 0:
+            if ((enemyBullet.x+hero.size*2)>=hero.x&&(enemyBullet.x-hero.size*4)<=(hero.x+hero.size*34.8)&&(enemyBullet.y+hero.size*2)>=hero.y&&(enemyBullet.y-hero.size*2)<=(hero.y+hero.size*34)) {
+                enemyBullet.live = false;
+                hero.live = false;
+                var heroBomb = new Bomb('enemy',hero.x,hero.y,hero.size);//创建爆炸图
+                heroBombs.push(heroBomb);//放入bombs数组中                    
+                heroBullets.live = false;
+                window.clearInterval(enemyBullet.timer);
+                window.clearInterval(hero.timer);
+                hitTiger(hero);
+                }
+        break;
+        case 1:
+            if ((enemyBullet.x+hero.size*2)>=hero.x&&(enemyBullet.x-hero.size*4)<=(hero.x+hero.size*34)&&(enemyBullet.y+hero.size*2)>=hero.y&&(enemyBullet.y-hero.size*2)<=(hero.y+hero.size*34.8)) {
+                enemyBullet.live = false;
+                hero.live = false;
+                var heroBomb = new Bomb('enemy',hero.x,hero.y,hero.size);//创建爆炸图
+                heroBombs.push(heroBomb);//放入bombs数组中                    
+                heroBullets.live = false;
+                window.clearInterval(enemyBullet.timer);
+                window.clearInterval(hero.timer);
+                hitTiger(hero);
+            }
+        break;
+        case 2:
+            if ((enemyBullet.x+hero.size*2)>=hero.x&&(enemyBullet.x-hero.size*4)<=(hero.x+hero.size*34.8)&&(enemyBullet.y+hero.size*2)>=hero.y&&(enemyBullet.y-hero.size*2)<=(hero.y+hero.size*34)) {
+                enemyBullet.live = false;
+                hero.live = false;
+                var heroBomb = new Bomb('enemy',hero.x,hero.y,hero.size);//创建爆炸图
+                heroBombs.push(heroBomb);//放入bombs数组中                    
+                heroBullets.live = false;                                
+                window.clearInterval(enemyBullet.timer);
+                window.clearInterval(hero.timer);
+                hitTiger(hero);
+            }
+        break;
+        case 3:
+            if ((enemyBullet.x+enemyBullet.size*2)>=(hero.x)&&(enemyBullet.x-enemyBullet.size*4)<=(hero.x+hero.size*34.8)&&(enemyBullet.y+enemyBullet.size*2)>=hero.y&&(enemyBullet.y-enemyBullet.size*2)<=(hero.y+hero.size*34.8)) {
+                enemyBullet.live = false;
+                hero.live = false;
+                var heroBomb = new Bomb('enemy',hero.x,hero.y,hero.size);//创建爆炸图
+                heroBombs.push(heroBomb);//放入bombs数组中                    
+                heroBullets.live = false ;                
+                window.clearInterval(enemyBullet.timer);
+                window.clearInterval(hero.timer);
+                hitTiger(hero);
+            }
+        break;                                                                        
+    }  
+
+    document.getElementById('i8').innerText='我方生命:'+hero.live;  
+} 
+//命中坦克
+function hitTiger(tiger){
+  if(tiger.live==false){
+    var au = document.createElement('audio');
+    au.preload = 'auto';
+    au.src = 'music/hitTiger.wav'
+    au.volume = 0.5;     
+    au.play();//爆炸声
+    for (var i = 0; i < enemyBombs.length; i++) {            
+        var enemyBomb=enemyBombs[i]; 
+        if(enemyBomb.live){      
+            //更据当前这个炸弹的生命值，来画出不同的炸弹图片
+            if(enemyBomb.blood>6){  //显示最大炸弹图
+                var img1=new Image();
+                img1.src="image/bomb_1.gif";
+                var x=enemyBomb.x*enemyBomb.size;
+                var y=enemyBomb.y*enemyBomb.size;
+                img1.onload=function(){
+                    pen.drawImage(img1,x,y,30,30);
+                }
+            }else if(bomb.blood>3){
+                var img2=new Image();
+                img2.src="image/bomb_2.gif";
+                var x=enemyBomb.x*enemyBomb.size;
+                var y=enemyBomb.y*enemyBomb.size;
+                img2.onload=function(){
+                    pen.drawImage(img2,x,y,30,30);
+                }
+            }else {
+                var img3=new Image();
+                img3.src="imagebomb_3.gif";
+                var x=enemyBomb.x*enemyBomb.size;
+                var y=enemyBomb.y*enemyBomb.size;
+                img3.onload=function(){
+                    pen.drawImage(img3,x,y,30,30);
+                }
+            }
+            //减血
+            enemyBomb.bloodDown();
+            if(enemyBomb.blood<=0){
+                //把这个炸弹从数组中去掉
+                enemyBombs.splice(i,1);
+
+            }
+        }
+    }
+    for (var i = 0; i < heroBombs.length; i++) {          
+        var heroBomb=heroBombs[i]; 
+        if(heroBomb.live){      
+            //更据当前这个炸弹的生命值，来画出不同的炸弹图片
+            if(heroBomb.blood>6){  //显示最大炸弹图
+                var img1=new Image();
+                img1.src="image/bomb_1.gif";
+                var x=heroBomb.x*heroBomb.size;
+                var y=heroBomb.y*heroBomb.size;
+                img1.onload=function(){
+                    pen.drawImage(img1,x,y,30*tiger.size,30*tiger.size);
+                }
+            }else if(bomb.blood>3){
+                var img2=new Image();
+                img2.src="image/bomb_2.gif";
+                var x=heroBomb.x*heroBomb.size;
+                var y=heroBomb.y*heroBomb.size;
+                img2.onload=function(){
+                    pen.drawImage(img2,x,y,30*tiger.size,30*tiger.size);
+                }
+            }else {
+                var img3=new Image();
+                img3.src="imagebomb_3.gif";
+                var x=heroBomb.x*heroBomb.size;
+                var y=heroBomb.y*heroBomb.size;
+                img3.onload=function(){
+                    pen.drawImage(img3,x,y,30*tiger.size,30*tiger.size);
+                }
+            }
+            //减血
+            heroBomb.bloodDown();
+            if(heroBomb.blood<=0){
+                //把这个炸弹从数组中去掉
+                heroBombs.splice(i,1);
+
+            }
+        }
+    }    
+  }
+}
+//接受用户命令函数(被操作对象：我方坦克)
+function userOrder(ev,tiger){
+    // var ev = ev||window.event;
+    var n = ev.keyCode;
+    if(tiger.live){//这个tiger只为hero
+        switch(n){
+            case 38://上
+                if(tiger.y<=0){
+                    tiger.y = 0;
+                }else{
+                    tiger.top =true;
+                    tiger.direct = 0;
+                    // tiger.musicOpen = true;
+                    // tiger.music();//连续按键时会连续调用tiger.music耗内存
+
+                    // tiger.move(n);
+                }
+            break;
+            case 39://右
+                if(tiger.x>=(border[0]-tiger.size*34.8)){
+                    tiger.x = border[0]-tiger.size*34.8;
+                }else{
+                    tiger.right = true;
+                    tiger.direct = 1;
+                    // tiger.musicOpen = true;
+                    // tiger.music();//连续按键时会连续调用tiger.music耗内存
+                    // tiger.move(n);
+                }
+            break;
+            case 40://下
+                if(tiger.y>=border[1]-tiger.size*34){
+                    tiger.y = border[1]-tiger.size*34;
+                }else{
+                    tiger.bottom = true;
+                    tiger.direct = 2;
+                    // tiger.musicOpen = true;
+                    // tiger.music();//连续按键时会连续调用tiger.music耗内存
+                    // tiger.move(n);
+                }
+            break;
+            case 37://左
+                if(tiger.x<=0){
+                    tiger.x = 0;
+                }else{
+                    tiger.left = true;
+                    tiger.direct = 3;
+                    // tiger.musicOpen = true;
+                    // tiger.music();//连续按键时会连续调用tiger.music耗内存
+                    // tiger.move(n);
+                }
+            break;
+            case 32://发射子弹
+                tiger.shoot();
+            break;
+            case 61://+
+                if(tiger.size<5){
+                    tiger.size += 0.1;
+                }else{
+                    tiger.size = 5;
+                }
+            break;
+            case 173://-
+                if(tiger.size>1){
+                    tiger.size -= 0.1;
+                }else{
+                    tiger.size = 1;
+                }
+            break;                  
+            case 68://d:锁定键 
+                tiger.locking();
+            break;
+            case 83://s:取消锁定/取消免疫
+                lock=false;
+                immune = false;
+                document.getElementById('i15').innerText='取消锁定,取消发射,取消免疫';
+            break;
+            case 70://f: 锁定目标后发射导弹  
+                if(lock==true){
+                    tiger.missile();
+                    document.getElementById('i15').innerText='锁定发射导弹';
+                }
+            break;
+            case 65://a:免疫攻击
+                immune =true;
+                document.getElementById('i15').innerText='免疫攻击';
+            break;
+            // case x://增加敌方坦克数量:num
+            // break;       
+
+        }
+    }
+    refresh();
+}
+//赋值/复活坦克(敌方、我方)
+function relieve(){
+    for (var i = 0; i<num; i++) {
+        var enemyTank = new Enemy('enemy',50*(i+1),50*(i+2),Math.round(Math.random()*3),speed,size,enemyColor);//初始敌方坦克位置\数量可设定为函数（待做）
+        enemyTanks[i] = enemyTank;
+
+        var eTimer = window.setInterval('enemyTanks['+i+'].enemyRun()',50);  
+        enemyTanks[i].timer = eTimer;//id:2-3-4-5
+
+        enemyTanks[i].code = enemyTanks[i].code+i;//坦克.index
+
+        enemyNum = enemyTanks.length;//敌方坦克数量
+
+        // enemyTanks[i].collisionAvoid();//坦克之间规避函数(待完善)         
+    }
+}
+relieve();//赋值
+// 刷屏函数
+function refresh(){
+    pen.clearRect(0,0,border[0],border[1]);//清屏
+    if(hero.live){
+        drawTank(hero,lock);//绘制出坦克
+        drawBullet(hero);         
+        heroHit(hero);
+        heroMissileHit(hero);
+        document.getElementById('i17').innerText='hero.missileLive:'+hero.missileLive+'||'+'heroMissiles.length:'+heroMissiles.length;
+    }  
+    for (var i=0; i<enemyTanks.length; i++) {
+        if(enemyTanks[i].live){
+            drawTank(enemyTanks[i],lock);
+            drawBullet(enemyTanks[i]);
+            // enemyTanks[i].collisionAvoid(); 
+        }else if(enemyTanks[i].live==false&&enemyTanks[i].lock==false&&lock==false||hero.live==false){
+            lockTigerX = -10;
+            lockTigerY = -10; 
+            document.getElementById('i11').innerText = '敌方'+enemyTanks[i].code+'号坦克死亡';
+            window.clearInterval(enemyTanks[i].timer);          
+        }
+        document.getElementById("i5").innerText="hero.heroBulletLive1="+hero.heroBulletLive;
+        document.getElementById('i10').innerText = '敌方坦克数量:'+enemyNum;
+        if(lock&&enemyTanks[i].lock&&enemyTanks[i].live&&hero.live){
+            lockTigerX = enemyTanks[i].x;
+            lockTigerY = enemyTanks[i].y;          
+            document.getElementById('i12').innerText='锁定敌方坦克'+enemyTanks[i].code+'号=X:'+lockTigerX+'Y:'+lockTigerY;
+         }//else if(enemyTanks[i].live==false){
+        //     lockTigerX = -10;
+        //     lockTigerY = -10;           
+        // }
+    }
+    if(immune==false){//是否免疫
+        for(var i=0;i<enemyBullets.length;i++){
+            if(enemyBullets[i].live&&hero.live){
+                enemyHit(enemyBullets[i]); 
+            }
+        } 
+    } 
+    document.getElementById("i4").innerText="我方:x="+hero.x+"y="+hero.y;
+}
+window.setInterval('refresh()',100);
+</script>
+</html>
